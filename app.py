@@ -1,153 +1,47 @@
-import time
-from flask import Flask, render_template, request, redirect, url_for, flash, Blueprint, jsonify
+from flask import Flask, render_template, jsonify,request, redirect, url_for, send_from_directory
 from flask_mysqldb import MySQL
-from flask_jwt_extended import create_access_token, JWTManager, get_jwt_identity, jwt_required, set_access_cookies, unset_jwt_cookies
-
-import hashlib
-
-def insert_user(username,password,email):
-    try:
-        cur=mysql.connection.cursor()
-        query="INSERT INTO user (username,password,email,id_role) VALUES('{}','{}','{}',2)".format(username,password,email)
-        cur.execute(query)
-        mysql.connection.commit()
-        time.sleep(2.4)
-        query="SELECT u.username, u.password, u.email, r.role FROM user u INNER JOIN role r on u.id_role = r.id_role WHERE u.username='{}'".format(username)
-        cur.execute(query)
-        data=cur.fetchone()
-        print(data)
-        if data[1] == password:
-            return data
-        else: 
-            return None
-    except Exception as e:
-        return str(e)
-
-def fetch_user_signup(username, email):
-    cur=mysql.connection.cursor()
-
-    if username != None:
-        query="SELECT u.email, u.password, u.email, r.role FROM user u INNER JOIN role r on u.id_role = r.id_role WHERE u.username='{}'".format(username)
-
-    elif email != None:
-        query="SELECT u.email, u.password, u.email, r.role FROM user u INNER JOIN role r on u.id_role = r.id_role WHERE u.email='{}'".format(email)
-
-    cur.execute(query)
-    data=cur.fetchone()
-    if data == None:
-        return True
-    else:
-        return False
-
-
-def fetch_user_login(username,password):
-    cur=mysql.connection.cursor()
-    query="SELECT u.username, u.password, u.email, r.role FROM user u INNER JOIN role r on u.id_role = r.id_role WHERE u.username='{}'".json.getat(username)
-    cur.execute(query)
-    data=cur.fetchone()
-    print(data)
-    if data[1] == password:
-        return data
-    else: 
-        return None
+from flask_jwt_extended import  JWTManager, jwt_required, get_jwt_identity
+import os
+# Moduls
+from querys import Query
+from loginApi import loginApi
+from visitsApi import visitsApi
+from exhibitionApi import exhibitionApi
+from reviewApi import reviewApi
 
 app = Flask(__name__)
-
-
-app.config['MYSQL_HOST'] = 'localhost'
-app.config['MYSQL_USER'] = 'root'
-app.config['MYSQL_PASSWORD'] = ''
-app.config['MYSQL_DB'] = 'museo'
+# Config mysql
+app.config['MYSQL_HOST'] = 'Thejairex.mysql.pythonanywhere-services.com'
+app.config['MYSQL_USER'] = 'Thejairex'
+app.config['MYSQL_PASSWORD'] = 'aiwa2015'
+app.config['MYSQL_DB'] = 'Thejairex$museo'
 app.config["JWT_SECRET_KEY"] = "TikkiX2"
 
+# Inits
 jwt = JWTManager(app)
 mysql = MySQL(app)
 
+
+# Routes to templates of testing
 @app.route('/')
 def index():
-    return render_template('index.html')
+    datas = Query.fechtAllUsers()
+    return render_template('index.html', datas=datas)
 
 @app.route('/login')
 def login_page():
     return render_template('login.html')
 
-@app.route("/api/login", methods=['POST'])
-def login():
-    if request.method == 'POST':
-        username = request.json.get("username", None)
-        password = request.json.get("password", None)
-        password = hashlib.sha256(password.encode('utf-8')).hexdigest()
-        userData= fetch_user_login(username, password)
-        if userData != None:
-            
-            access_token = create_access_token(identity={
-                'username': userData[0],
-                'email': userData[2],
-                'role': userData[3],
-            })
-
-            response = jsonify({
-                    'accessToken': access_token,
-                    'username': userData[0],
-                    'email': userData[2],
-                    'role': userData[3],
-                })
-            set_access_cookies(response, access_token)
-            return response
-        else:
-            return jsonify({
-                "message": "User not found!" 
-            }), 401
-
-@app.route("/api/user", methods=['GET'])
-@jwt_required()
-def user():
-    current_user = get_jwt_identity()
-    return jsonify(current_user), 200
+@app.route('/signup')
+def signup_page():
+    return render_template('signup.html')
 
 
-@app.route("/api/signup", methods=['POST'])
-def signup():
-    if request.method == 'POST':
-        username = request.json.get("username", None)
-        email = request.json.get("email", None)
-        password = request.json.get("password", None)
-        password = hashlib.sha256(password.encode('utf-8')).hexdigest()
-        if fetch_user_signup(username=username, email=None):
-            if fetch_user_signup(username=None, email=email):
-                userData= insert_user(username,password,email)
-                
-                print(userData)
-                access_token = create_access_token(identity={
-                    'user': userData[0],
-                    'email': userData[2],
-                    'role': userData[3],
-                })
-
-                response = jsonify({
-                    'accessToken': access_token,
-                    'username': userData[0],
-                    'email': userData[2],
-                    'role': userData[3],
-                })
-
-                set_access_cookies(response, access_token)
-                return response
-
-            else:
-                return jsonify({
-                "message": "Your email is registered"
-            }), 401
-        else:
-            return jsonify({
-                "message": "Your username is registered"
-            }), 401
-
-@app.route("/api/logout", methods=['POST'])
-def logout():
-    response = jsonify({"message": "Logout Successful"})
-    unset_jwt_cookies(response)
-    return response
+# APIs
+app.register_blueprint(visitsApi)
+app.register_blueprint(reviewApi)
+app.register_blueprint(loginApi)
+app.register_blueprint(exhibitionApi)
 
 if __name__ == "__main__":
     app.run(debug=True)
